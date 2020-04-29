@@ -69,53 +69,58 @@ class reader:
         self.last_frame=np.zeros(8)
 
         with open(path, 'rb') as f:
-            for i in range(0, statinfo.st_size // 8):
-                data = f.read(8)
-                if sys.version_info[0]== 2:
-                    hexdata = str(binascii.hexlify(data))
-                else:
-                    hexdata = str(binascii.hexlify(data), 'ascii')
-                string= "{:064b}".format(int(hexdata,16))
-                inverted=[]
-                for i in range (8,0,-1):
-                    inverted.append(string[(i-1)*8:i*8])
-                string_inv="".join(inverted)
-                int_x = int(string_inv,2)
-                if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a framword
+            with open(rname + "missing_frames", "w") as fo:
 
-                    this_framecount = ((int_x >> 15) & 0xFFFF)
-                    this_tiger = ((int_x >> 56) & 0x7)
-                    self.last_frame[this_tiger]=this_framecount
+                for i in range(0, statinfo.st_size // 8):
+                    data = f.read(8)
+                    if sys.version_info[0]== 2:
+                        hexdata = str(binascii.hexlify(data))
+                    else:
+                        hexdata = str(binascii.hexlify(data), 'ascii')
+                    string= "{:064b}".format(int(hexdata,16))
+                    inverted=[]
+                    for i in range (8,0,-1):
+                        inverted.append(string[(i-1)*8:i*8])
+                    string_inv="".join(inverted)
+                    int_x = int(string_inv,2)
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a framword
 
-                if (((int_x & 0xFF00000000000000) >> 59) == 0x00):
-                    tree_struct.tiger = (int_x>>56)&0x7
-                    if self.last_frame[int(tree_struct.tiger)] != 0:
-                        tree_struct.last_frame = int(self.last_frame[int(tree_struct.tiger)])
-                        tree_struct.channel = (int_x>>48)&0x3F
-                        tree_struct.tac = (int_x>>46)&0x3
-                        tree_struct.tcoarse = (int_x >> 30)&0xFFFF
-                        tree_struct.ecoarse = (int_x >> 20)&0x3FF
-                        tree_struct.tfine = (int_x >> 10)&0x3FF
-                        tree_struct.efine = int_x & 0x3FF
-                        tree_struct.tcoarse_10b = (int_x >> 30)&0x3FF
-                        if tree_struct.last_frame//2==0 and tree_struct.tcoarse > 2**15:
-                            tree_struct.timestamp = ((tree_struct.last_frame-1)*2**15+tree_struct.tcoarse) *6.25 * 10**(-9)
-                        else:
-                            tree_struct.timestamp = (tree_struct.last_frame*2**15+tree_struct.tcoarse) * 6.25 * 10**(-9)
-                        if (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))>0:
-                            tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))
-                        else:
-                            tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF)) + 1024
-                        temp_ecoarse = tree_struct.ecoarse
-                        tree_struct.charge_SH = int_x & 0x3FF
+                        this_framecount = ((int_x >> 15) & 0xFFFF)
+                        this_tiger = ((int_x >> 56) & 0x7)
+                        if self.last_frame[this_tiger]!=0 and self.last_frame[this_tiger]!=2**16:
+                            if self.last_frame[this_tiger]!=this_framecount-1:
+                                    fo.write("tiger {}, last frame {}, this frame {}, diff {}\n".format(this_tiger,self.last_frame[this_tiger],this_framecount,this_framecount-self.last_frame[this_tiger]))
+                        self.last_frame[this_tiger]=this_framecount
 
-                        if(int(gemroc)<4):
-                            tree_struct.layer = 1
-                        elif(int(gemroc)<11):
-                            tree_struct.layer = 2
-                        else:
-                            tree_struct.layer = 3
-                        tree.Fill()
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x00):
+                        tree_struct.tiger = (int_x>>56)&0x7
+                        if self.last_frame[int(tree_struct.tiger)] != 0:
+                            tree_struct.last_frame = int(self.last_frame[int(tree_struct.tiger)])
+                            tree_struct.channel = (int_x>>48)&0x3F
+                            tree_struct.tac = (int_x>>46)&0x3
+                            tree_struct.tcoarse = (int_x >> 30)&0xFFFF
+                            tree_struct.ecoarse = (int_x >> 20)&0x3FF
+                            tree_struct.tfine = (int_x >> 10)&0x3FF
+                            tree_struct.efine = int_x & 0x3FF
+                            tree_struct.tcoarse_10b = (int_x >> 30)&0x3FF
+                            if tree_struct.last_frame//2==0 and tree_struct.tcoarse > 2**15:
+                                tree_struct.timestamp = ((tree_struct.last_frame-1)*(2**15)+tree_struct.tcoarse) *6.25 * (10**(-9))
+                            else:
+                                tree_struct.timestamp = (tree_struct.last_frame*(2**15)+tree_struct.tcoarse) * 6.25 *( 10**(-9))
+                            if (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))>0:
+                                tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))
+                            else:
+                                tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF)) + 1024
+                            temp_ecoarse = tree_struct.ecoarse
+                            tree_struct.charge_SH = int_x & 0x3FF
+
+                            if(int(gemroc)<4):
+                                tree_struct.layer = 1
+                            elif(int(gemroc)<11):
+                                tree_struct.layer = 2
+                            else:
+                                tree_struct.layer = 3
+                            tree.Fill()
 
 
 
@@ -123,6 +128,29 @@ class reader:
         rootFile.Close()
         print ("Sub {} G {} done in {:02f}".format(subrun, gemroc, time.time()-start_time))
 
+    def extract_frame_in_txt(self, path, gemroc, run, subrun):
+        statinfo = os.stat(path)
+        self.last_frame = np.zeros(8)
+        outpath="/home/alb/Desktop/elaborazioni_e_dati/analisi_run/TL_analisys/data_out/{}/frame_txt/subrun_{}_gemroc_{}.txt".format(run,subrun,gemroc)
+        with open(path, 'rb') as f:
+            with open (outpath, 'w+') as fo:
+                for i in range(0, statinfo.st_size // 8):
+                    data = f.read(8)
+                    if sys.version_info[0] == 2:
+                        hexdata = str(binascii.hexlify(data))
+                    else:
+                        hexdata = str(binascii.hexlify(data), 'ascii')
+                    string = "{:064b}".format(int(hexdata, 16))
+                    inverted = []
+                    for i in range(8, 0, -1):
+                        inverted.append(string[(i - 1) * 8:i * 8])
+                    string_inv = "".join(inverted)
+                    int_x = int(string_inv, 2)
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a framword
+
+                        this_framecount = ((int_x >> 15) & 0xFFFF)
+                        this_tiger = ((int_x >> 56) & 0x7)
+                        fo.write(f'tiger {this_tiger} frame {this_framecount}\n')
 
 
 
@@ -130,4 +158,4 @@ class reader:
 if __name__ == "__main__":
     runner = reader("/media/alb/space/TIGER_scriptsV3/data_folder")
     runner.elab_on_run(398)
-    #runner.write_root("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)
+    #runner.extract_frame_in_txt("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)
