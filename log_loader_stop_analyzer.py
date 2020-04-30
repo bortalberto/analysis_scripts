@@ -127,9 +127,9 @@ if __name__ == "__main__":
 
         run = sys.argv[1]
         raw_path = sys.argv[2]
-        raw_path="/home/alb/srv_lab_raw"
+        # raw_path="/home/alb/srv_lab_raw"
         outpath=sys.argv[3]
-        outpath='/home/alb/Desktop/elaborazioni_e_dati/analisi_run/end_of_subruns'
+        # outpath='/home/alb/Desktop/elaborazioni_e_dati/analisi_run/end_of_subruns'
         runner = reader(raw_path,outpath)
         # runner = reader("")
         runner.elab_on_run(run)
