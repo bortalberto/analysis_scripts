@@ -97,7 +97,7 @@ class reader:
             tree_struct.triggers = int (np.min(lenght_list[np.nonzero(lenght_list)]))
             tree_struct.standard_end = 0
             tree_struct.timeout_end = 0
-            tree_struct.error_end_FEB = errors_list[0][0]*8+errors_list[0][1]//2
+            tree_struct.error_end_FEB = errors_list[0][0]*4+errors_list[0][1]//2
             tree_struct.DAQ_crash = 0
             tree_struct.end = 2
 
@@ -127,9 +127,9 @@ if __name__ == "__main__":
 
         run = sys.argv[1]
         raw_path = sys.argv[2]
-        # raw_path="/home/alb/srv_lab_raw"
+        raw_path="/home/alb/srv_lab_raw"
         outpath=sys.argv[3]
-        # outpath='/home/alb/Desktop/elaborazioni_e_dati/analisi_run/end_of_subruns'
+        outpath='/home/alb/Desktop/elaborazioni_e_dati/analisi_run/end_of_subruns'
         runner = reader(raw_path,outpath)
         # runner = reader("")
         runner.elab_on_run(run)
