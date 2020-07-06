@@ -1,0 +1,10 @@
+
+trigger_decode/
+
+TL_analisys/data_out/
+
+.ipynb_checkpoints/
+
+__pycache__/
+
+.idea/
