@@ -9,11 +9,15 @@ import sys
 
 from multiprocessing import Pool
 import glob2
-
+import log_loader_time
 class reader:
     def __init__(self, path):
+        """
+        Elabora i file TL.
+        """
+        self.real_time=False
         self.path = path
-        R.gROOT.ProcessLine('struct TreeStruct {\
+        R.gROOT.ProcessLine('struct TreeStructTL {\
                 int runNo;\
                 int subRunNo;\
                 int layer;\
@@ -27,46 +31,67 @@ class reader:
                 int ecoarse;\
                 int tfine;\
                 int efine;\
-                float timestamp;\
+                Double_t timestamp;\
                 int delta_coarse;\
                 };')
+        self.time_start={}
+        self.time_end={}
     def __del__(self):
         pass
 
-    def elab_on_run(self, run):
+    def elab_on_run(self, run,real_time):
+        if real_time:
+            self.real_time=real_time
+            red = log_loader_time.reader("/media/alb/Removibile/dati_raw/", "/media/alb/Removibile/dati/")
+            self.time_start,self.time_end=red.elab_on_run_dict(run)
         start_time= time.time()
         pool = Pool(processes=8)
         input_list=[]
-        if not os.path.exists('/home/alb/Desktop/elaborazioni_e_dati/analisi_run/TL_analisys/data_out/{}'.format(run)):
-            os.mkdir('/home/alb/Desktop/elaborazioni_e_dati/analisi_run/TL_analisys/data_out/{}'.format(run))
+        if not os.path.exists('/media/alb/Removibile/dati/{}'.format(run)):
+            os.mkdir('/media/alb/Removibile/dati/{}'.format(run))
         for filename, (subrun, gemroc)in glob2.iglob(self.path+"/RUN_{}/SubRUN_*_GEMROC_*_TL.dat".format(run), with_matches=True):
             input_list.append((filename, gemroc, run, subrun ))
         pool.starmap(self.write_root, input_list)
         print ("All done in {:02f}".format(time.time()-start_time))
 
     def write_root(self, path, gemroc, run, subrun):
+        if self.real_time:
+            time_0 = int(self.time_start[subrun])
+        else:
+            time_0 = 0
         start_time = time.time()
 
-        rname = '/home/alb/Desktop/elaborazioni_e_dati/analisi_run/TL_analisys/data_out/{}/sub_{}_G_{}.root'.format(run,subrun,gemroc)
+        rname = '/media/alb/Removibile/dati/{}/sub_{}_G_{}.root'.format(run,subrun,gemroc)
 
 
         rootFile = R.TFile(rname, 'recreate')
         tree = R.TTree('tree', '')
-        tree_struct = R.TreeStruct()
+        tree_struct = R.TreeStructTL()
+
+        tree.Branch('runNo', R.AddressOf(tree_struct, 'runNo'), 'runNo/I')
+        tree.Branch('subRunNo', R.AddressOf(tree_struct, 'subRunNo'), 'subRunNo/I')
+        tree.Branch('layer', R.AddressOf(tree_struct, 'layer'), 'layer/I')
+        tree.Branch('gemroc', R.AddressOf(tree_struct, 'gemroc'), 'gemroc/I')
+        tree.Branch('tiger', R.AddressOf(tree_struct, 'tiger'), 'tiger/I')
+        tree.Branch('channel', R.AddressOf(tree_struct, 'channel'), 'channel/I')
+        tree.Branch('tac', R.AddressOf(tree_struct, 'tac'), 'tac/I')
+        tree.Branch('last_frame', R.AddressOf(tree_struct, 'last_frame'), 'last_frame/I')
+        tree.Branch('tcoarse', R.AddressOf(tree_struct, 'tcoarse'), 'tcoarse/I')
+        tree.Branch('tcoarse_10b', R.AddressOf(tree_struct, 'tcoarse_10b'), 'tcoarse_10b/I')
+        tree.Branch('ecoarse', R.AddressOf(tree_struct, 'ecoarse'), 'ecoarse/I')
+        tree.Branch('tfine', R.AddressOf(tree_struct, 'tfine'), 'tfine/I')
+        tree.Branch('efine', R.AddressOf(tree_struct, 'efine'), 'efine/I')
+        tree.Branch('timestamp', R.AddressOf(tree_struct, 'timestamp'), 'timestamp/D')
+        tree.Branch('delta_coarse', R.AddressOf(tree_struct, 'delta_coarse'), 'delta_coarse/I')
+
+
         tree_struct.subRunNo = int(subrun)
         tree_struct.runNo = int(run)
         tree_struct.gemroc = int(gemroc)
 
-        for key in R.TreeStruct.__dict__.keys():
-            if '__' not in key:
-                formstring = '/F'
-                if isinstance(tree_struct.__getattribute__(key), int):
-                    formstring = '/I'
-                tree.Branch(key, R.AddressOf(tree_struct, key), key + formstring)
-
-
         statinfo = os.stat(path)
         self.last_frame=np.zeros(8)
+        self.roll_counter=np.zeros(8)
 
         with open(path, 'rb') as f:
             with open(rname + "missing_frames", "w") as fo:
@@ -87,9 +112,11 @@ class reader:
 
                         this_framecount = ((int_x >> 15) & 0xFFFF)
                         this_tiger = ((int_x >> 56) & 0x7)
-                        if self.last_frame[this_tiger]!=0 and self.last_frame[this_tiger]!=2**16:
+                        if self.last_frame[this_tiger]!=0 and self.last_frame[this_tiger]!=2**16-1:
                             if self.last_frame[this_tiger]!=this_framecount-1:
                                     fo.write("tiger {}, last frame {}, this frame {}, diff {}\n".format(this_tiger,self.last_frame[this_tiger],this_framecount,this_framecount-self.last_frame[this_tiger]))
+                        if self.last_frame[this_tiger]!=0 and self.last_frame[this_tiger]>this_framecount:
+                            self.roll_counter[this_tiger]+=1
                         self.last_frame[this_tiger]=this_framecount
 
                     if (((int_x & 0xFF00000000000000) >> 59) == 0x00):
@@ -103,16 +130,15 @@ class reader:
                             tree_struct.tfine = (int_x >> 10)&0x3FF
                             tree_struct.efine = int_x & 0x3FF
                             tree_struct.tcoarse_10b = (int_x >> 30)&0x3FF
+
                             if tree_struct.last_frame//2==0 and tree_struct.tcoarse > 2**15:
-                                tree_struct.timestamp = ((tree_struct.last_frame-1)*(2**15)+tree_struct.tcoarse) *6.25 * (10**(-9))
+                                tree_struct.timestamp = time_0+(self.roll_counter[this_tiger]*(2**15)*(2**16)+(tree_struct.last_frame-1)*(2**15)+tree_struct.tcoarse) *6.25 * (10**(-9))
                             else:
-                                tree_struct.timestamp = (tree_struct.last_frame*(2**15)+tree_struct.tcoarse) * 6.25 *( 10**(-9))
+                                tree_struct.timestamp = time_0+(self.roll_counter[this_tiger]*(2**15)*(2**16)+tree_struct.last_frame*(2**15)+tree_struct.tcoarse) * 6.25 *( 10**(-9))
                             if (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))>0:
                                 tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))
                             else:
                                 tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF)) + 1024
-                            temp_ecoarse = tree_struct.ecoarse
-                            tree_struct.charge_SH = int_x & 0x3FF
 
                             if(int(gemroc)<4):
                                 tree_struct.layer = 1
@@ -131,7 +157,7 @@ class reader:
     def extract_frame_in_txt(self, path, gemroc, run, subrun):
         statinfo = os.stat(path)
         self.last_frame = np.zeros(8)
-        outpath="/home/alb/Desktop/elaborazioni_e_dati/analisi_run/TL_analisys/data_out/{}/frame_txt/subrun_{}_gemroc_{}.txt".format(run,subrun,gemroc)
+        outpath="/media/alb/Removibile/dati/{}/frame_txt/subrun_{}_gemroc_{}.txt".format(run,subrun,gemroc)
         with open(path, 'rb') as f:
             with open (outpath, 'w+') as fo:
                 for i in range(0, statinfo.st_size // 8):
@@ -146,7 +172,7 @@ class reader:
                         inverted.append(string[(i - 1) * 8:i * 8])
                     string_inv = "".join(inverted)
                     int_x = int(string_inv, 2)
-                    if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a framword
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a frameword
 
                         this_framecount = ((int_x >> 15) & 0xFFFF)
                         this_tiger = ((int_x >> 56) & 0x7)
@@ -156,6 +182,6 @@ class reader:
 
 
 if __name__ == "__main__":
-    runner = reader("/media/alb/space/TIGER_scriptsV3/data_folder")
-    runner.elab_on_run(398)
+    runner = reader("/media/alb/Removibile/dati_raw")
+    runner.elab_on_run(417,True)
     #runner.extract_frame_in_txt("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)
