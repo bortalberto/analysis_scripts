@@ -297,7 +297,7 @@ def missing_elements(L, start, end):
 
 
 if __name__ == "__main__":
-    # reader_1=reader("/home/alb/srv_lab_raw", "/home/alb/Desktop/elaborazioni_e_dati/analisi_run/trigger_decode")
-    # reader_1.run_on_run(405)
+    reader_1=reader("/home/alb/srv_lab_raw", "/home/alb/Desktop/elaborazioni_e_dati/analisi_run/trigger_decode")
+    reader_1.run_on_run(376)
     analyzer_1=analyzer("/home/alb/Desktop/elaborazioni_e_dati/analisi_run/trigger_decode","/home/alb/Desktop/elaborazioni_e_dati/analisi_run/out")
-    analyzer_1.run_on_run(405)
+    analyzer_1.run_on_run(376)
