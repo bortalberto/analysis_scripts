@@ -19,7 +19,7 @@ def extract_spectrum(tree,rate_max,ext_1,ext_2,remove_peaks=False):
     N_bins=int((ext_2-ext_1)*rate_max)
     rate_real=N_bins/(ext_2-ext_1)
     h2 = R.TH1F("h2", 'rate Histogram', N_bins, ext_1, ext_2)
-    tree.Draw("timestamp>>h2")
+    tree.Draw("lcl_timestamp>>h2")
     if remove_peaks:
         for num in range (0, N_bins):
             if h2.GetBinContent(num)>300:

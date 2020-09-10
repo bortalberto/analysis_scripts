@@ -32,6 +32,7 @@ class reader:
                 int tfine;\
                 int efine;\
                 Double_t timestamp;\
+                Double_t lcl_timestamp;\
                 int delta_coarse;\
                 };')
         self.time_start={}
@@ -42,7 +43,7 @@ class reader:
     def elab_on_run(self, run,real_time):
         if real_time:
             self.real_time=real_time
-            red = log_loader_time.reader("/media/alb/Removibile/dati_raw/", "/media/alb/Removibile/dati/")
+            red = log_loader_time.reader(self.path, "/media/alb/Removibile/dati/")
             self.time_start,self.time_end=red.elab_on_run_dict(run)
         start_time= time.time()
         pool = Pool(processes=8)
@@ -54,16 +55,16 @@ class reader:
         pool.starmap(self.write_root, input_list)
         print ("All done in {:02f}".format(time.time()-start_time))
 
-    def write_root(self, path, gemroc, run, subrun):
+    def write_root(self, path, gemroc, run, subrun,outname="default"):
         if self.real_time:
             time_0 = int(self.time_start[subrun])
         else:
             time_0 = 0
         start_time = time.time()
-
-        rname = '/media/alb/Removibile/dati/{}/sub_{}_G_{}.root'.format(run,subrun,gemroc)
-
-
+        if outname=="default":
+            rname = '/media/alb/Removibile/dati/{}/sub_{}_G_{}.root'.format(run,subrun,gemroc)
+        else:
+            rname=outname
         rootFile = R.TFile(rname, 'recreate')
         tree = R.TTree('tree', '')
         tree_struct = R.TreeStructTL()
@@ -82,6 +83,8 @@ class reader:
         tree.Branch('tfine', R.AddressOf(tree_struct, 'tfine'), 'tfine/I')
         tree.Branch('efine', R.AddressOf(tree_struct, 'efine'), 'efine/I')
         tree.Branch('timestamp', R.AddressOf(tree_struct, 'timestamp'), 'timestamp/D')
+        tree.Branch('lcl_timestamp', R.AddressOf(tree_struct, 'lcl_timestamp'), 'lcl_timestamp/D')
+
         tree.Branch('delta_coarse', R.AddressOf(tree_struct, 'delta_coarse'), 'delta_coarse/I')
 
 
@@ -131,10 +134,16 @@ class reader:
                             tree_struct.efine = int_x & 0x3FF
                             tree_struct.tcoarse_10b = (int_x >> 30)&0x3FF
 
-                            if tree_struct.last_frame//2==0 and tree_struct.tcoarse > 2**15:
-                                tree_struct.timestamp = time_0+(self.roll_counter[this_tiger]*(2**15)*(2**16)+(tree_struct.last_frame-1)*(2**15)+tree_struct.tcoarse) *6.25 * (10**(-9))
-                            else:
-                                tree_struct.timestamp = time_0+(self.roll_counter[this_tiger]*(2**15)*(2**16)+tree_struct.last_frame*(2**15)+tree_struct.tcoarse) * 6.25 *( 10**(-9))
+                            if (tree_struct.last_frame%2 == 1) : # Voglio usare sempre la frame pari
+                                tree_struct.lcl_timestamp = (self.roll_counter[this_tiger] * (2 ** 15) * (2 ** 16) + (tree_struct.last_frame - 1) * (2 ** 15) + tree_struct.tcoarse) * 6.25 * (10 ** (-9))
+                                tree_struct.timestamp = time_0+tree_struct.lcl_timestamp
+                            elif(tree_struct.last_frame%2 == 0 and tree_struct.tcoarse>2**15): #Se però arriva la pari nuova e sono sul tcoarse vecchio (>2**15) allora prendo la pari precedente
+                                tree_struct.lcl_timestamp = (self.roll_counter[this_tiger] * (2 ** 15) * (2 ** 16) + (tree_struct.last_frame - 2) * (2 ** 15) + tree_struct.tcoarse) * 6.25 * (10 ** (-9))
+                                tree_struct.timestamp = time_0 + tree_struct.lcl_timestamp
+                            else: # Se è pari e tcoarse <2**15 prendo quella che c'è
+                                tree_struct.lcl_timestamp = (self.roll_counter[this_tiger]*(2**15)*(2**16)+tree_struct.last_frame*(2**15)+tree_struct.tcoarse) * 6.25 *( 10**(-9))
+                                tree_struct.timestamp = time_0+tree_struct.lcl_timestamp
+
                             if (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))>0:
                                 tree_struct.delta_coarse = (((int_x >> 20)&0x3FF) - ((int_x >> 30)&0x3FF))
                             else:
@@ -147,6 +156,7 @@ class reader:
                             else:
                                 tree_struct.layer = 3
                             tree.Fill()
+
 
 
 
@@ -178,10 +188,55 @@ class reader:
                         this_tiger = ((int_x >> 56) & 0x7)
                         fo.write(f'tiger {this_tiger} frame {this_framecount}\n')
 
+    def write_txt(self, path, gemroc, run, subrun,outname="default"):
+        statinfo = os.stat(path)
+
+        self.last_frame = np.zeros(8)
+        if outname=="default":
+            outpath="/media/alb/Removibile/dati/{}/frame_txt/subrun_{}_gemroc_{}.txt".format(run,subrun,gemroc)
+        else:
+            outpath=outname
+        with open(path, 'rb') as f:
+            with open (outpath, 'w+') as fo:
+                for i in range(0, statinfo.st_size // 8):
+                    data = f.read(8)
+                    if sys.version_info[0] == 2:
+                        hexdata = str(binascii.hexlify(data))
+                    else:
+                        hexdata = str(binascii.hexlify(data), 'ascii')
+                    string = "{:064b}".format(int(hexdata, 16))
+                    inverted = []
+                    for i in range(8, 0, -1):
+                        inverted.append(string[(i - 1) * 8:i * 8])
+                    string_inv = "".join(inverted)
+                    int_x = int(string_inv, 2)
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a frameword
+
+                        this_framecount = ((int_x >> 15) & 0xFFFF)
+                        this_tiger = ((int_x >> 56) & 0x7)
+                        fo.write(f'tiger {this_tiger} frame {this_framecount}\n')
+
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x04):  # It's a frameword
+                        s = 'TIGER ' + '%01X: ' % ((int_x >> 56) & 0x7) + 'HB: ' + 'Framecount: %08X ' % (
+                                (int_x >> 15) & 0xFFFF) + 'SEUcount: %08X\n' % (int_x & 0x7FFF)
+
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x08):
+                        s = 'TIGER ' + '%01X: ' % ((int_x >> 56) & 0x7) + 'CW: ' + 'ChID: %02X ' % (
+                                (int_x >> 24) & 0x3F) + ' CounterWord: %016X\n' % (int_x & 0x00FFFFFF)
+                    if (((int_x & 0xFF00000000000000) >> 59) == 0x00):
+                        s = 'TIGER ' + '%01X: ' % ((int_x >> 56) & 0x7) + 'EW: ' + 'ChID: %02X ' % (
+                                (int_x >> 48) & 0x3F) + 'tacID: %01X ' % ((int_x >> 46) & 0x3) + 'Tcoarse: %04X ' % (
+                                    (int_x >> 30) & 0xFFFF) + 'Ecoarse: %03X ' % (
+                                    (int_x >> 20) & 0x3FF) + 'Tfine: %03X ' % ((int_x >> 10) & 0x3FF) + 'Efine: %03X \n' % (
+                                    int_x & 0x3FF)
+                    fo.write(s)
+
 
 
 
 if __name__ == "__main__":
-    runner = reader("/media/alb/Removibile/dati_raw")
-    runner.elab_on_run(417,True)
+    runner = reader("/home/alb/srv_lab_raw/")
+    # runner = reader("/media/alb/Removibile/dati_raw/")
+
+    runner.elab_on_run(402,True)
     #runner.extract_frame_in_txt("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)
