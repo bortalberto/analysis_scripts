@@ -238,5 +238,5 @@ if __name__ == "__main__":
     runner = reader("/home/alb/srv_lab_raw/")
     # runner = reader("/media/alb/Removibile/dati_raw/")
 
-    runner.elab_on_run(402,True)
+    runner.elab_on_run(416,True)
     #runner.extract_frame_in_txt("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)

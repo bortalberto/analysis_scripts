@@ -8,6 +8,7 @@ import subprocess
 import time
 import sys
 from calendar import timegm
+import pickle
 
 
 class reader:
@@ -101,14 +102,19 @@ class reader:
 
         return time_dict_start, time_dict_end
 
+    def save_dict(self, time_dict,run):
+        with open(self.elabpath+"/"+run, "wb+") as savefile:
+            pickle.dump(time_dict, savefile)
 if __name__ == "__main__":
         if len (sys.argv)!=2:
             print ("Time extraction")
         else:
             run = sys.argv[1]
             # runner = reader(os.environ["data"]+"/raw_dat", os.environ["data"]+"/raw_dat" )
-            runner = reader("/home/alb/srv_lab_raw/", "/media/alb/space/TIGER_scriptsV3/data_folder/" )
-            runner.elab_on_run(run)
+            runner = reader("/home/alb/srv_lab_raw/", "/media/alb/Removibile/time_save/" )
+            # runner.elab_on_run(run)
+            time_dict=runner.elab_on_run_dict(run)
+            runner.save_dict(time_dict,run)
             print("Time extraction done")
 
 

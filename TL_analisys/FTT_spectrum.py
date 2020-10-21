@@ -15,11 +15,14 @@ def rescaleaxis(g,scale=1000/800):
 #     """This function rescales the x-axis on a TGraph."""
 
 
-def extract_spectrum(tree,rate_max,ext_1,ext_2,remove_peaks=False):
+def extract_spectrum(tree,rate_max,ext_1,ext_2,remove_peaks=False, TM=False, count = None):
     N_bins=int((ext_2-ext_1)*rate_max)
     rate_real=N_bins/(ext_2-ext_1)
     h2 = R.TH1F("h2", 'rate Histogram', N_bins, ext_1, ext_2)
-    tree.Draw("lcl_timestamp>>h2")
+    if TM:
+        tree.Draw("tcoarse*6.25*e-9>>h2,count=={}".format(count))
+    else:
+        tree.Draw("lcl_timestamp>>h2")
     if remove_peaks:
         for num in range (0, N_bins):
             if h2.GetBinContent(num)>300:
