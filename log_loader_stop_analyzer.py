@@ -94,7 +94,10 @@ class reader:
 
         elif len (errors_list)>0: #interrotto da errori
             print ("Run {} subrun {} ended for errors on G{} T{} triggers: {}".format (run, int(subrun),errors_list[0][0],errors_list[0][1], np.min(lenght_list)))
-            tree_struct.triggers = int (np.min(lenght_list[np.nonzero(lenght_list)]))
+            if len(lenght_list[np.nonzero(lenght_list)])>0:
+                tree_struct.triggers = int (np.min(lenght_list[np.nonzero(lenght_list)]))
+            else:
+                tree_struct.triggers = 0
             tree_struct.standard_end = 0
             tree_struct.timeout_end = 0
             tree_struct.error_end_FEB = errors_list[0][0]*4+errors_list[0][1]//2
@@ -103,7 +106,10 @@ class reader:
 
         elif len (lenght_list)>0:#ok
             print ("Run {} subrun {} triggers: {}".format (run, int(subrun), np.min(lenght_list)))
-            tree_struct.triggers = int (np.min(lenght_list[np.nonzero(lenght_list)]))
+            if len(lenght_list[np.nonzero(lenght_list)])>0:
+                tree_struct.triggers = int (np.min(lenght_list[np.nonzero(lenght_list)]))
+            else:
+                tree_struct.triggers = 0
             tree_struct.standard_end = 1
             tree_struct.timeout_end = 0
             tree_struct.error_end_FEB = -1
@@ -123,17 +129,10 @@ class reader:
         rootFile.Close()
 
 if __name__ == "__main__":
-    if len(sys.argv)==4:
-
-        run = sys.argv[1]
-        raw_path = sys.argv[2]
-        raw_path="/home/alb/srv_lab_raw"
-        outpath=sys.argv[3]
-        outpath='/home/alb/Desktop/elaborazioni_e_dati/analisi_run/end_of_subruns'
-        runner = reader(raw_path,outpath)
-        # runner = reader("")
-        runner.elab_on_run(run)
-        # runner.extract_frame_in_txt("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)
-    else:
-        print ("-----\n Format: <run_number> <data_path> <output_path> \n -----")
-        raise Exception("Bad input")
+    run = sys.argv[1]
+    raw_path="/home/alb/srv_lab_raw"
+    outpath='/home/alb/Desktop/elaborazioni_e_dati/analisi_run/end_of_subruns'
+    runner = reader(raw_path,outpath)
+    # runner = reader("")
+    runner.elab_on_run(run)
+    # runner.extract_frame_in_txt("/media/alb/space/TIGER_scriptsV3/data_folder/RUN_398/SubRUN_3_GEMROC_0_TL.dat", 0, 398, 3)
