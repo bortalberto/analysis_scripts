@@ -17,7 +17,7 @@ class reader:
         self.thr_scan_matrix = np.zeros((8, 64))  # Tiger,Channel
         self.thr_scan_frames = np.ones(8)
         self.thr_scan_rate = np.zeros((8, 64))
-
+        self.warning_print_MAX=10
     def __del__(self):
         print("Done\n\n")
 
@@ -311,7 +311,9 @@ class reader:
                                                 flag_swap1 = False
                                                 flag_swap2 = True
                                             else:
-                                                print("WARNING: not able to correct packet (L1_count={}) !!!!!!!!!!!!!!!".format(LOCAL_L1_COUNT))
+                                                if self.warning_print_MAX!=0:
+                                                    print("WARNING: not able to correct packet (L1_count={}) !!!!!!!!!!!!!!!".format(LOCAL_L1_COUNT))
+                                                    self.warning_print_MAX=self.warning_print_MAX-1
 
                             ## Apply packet correction to data of TIGER 4-7
                             if ((int_x >> 59) & 0x7 > 3):  ## correct packet for data of TIGER 4-7

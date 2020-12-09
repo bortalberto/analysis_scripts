@@ -18,3 +18,21 @@ Untitled Folder/hit_count_save
 TL_analisys/raw_data/
 
 TL_analisys/root_files/
+
+HV_studies/HV_and_cluster_data.root
+
+HV_studies/HV_and_cluster_data.pickle
+HV_studies/dati_meteo_pechino/
+HV_studies/html_export/
+end_of_subruns/
+exp_plots/
+
+HV_studies/*.pickle
+HV_studies/*.root
+
+
+out/351/
+
+out/419/
+
+out/
